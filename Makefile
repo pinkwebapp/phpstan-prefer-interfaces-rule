@@ -1,22 +1,25 @@
 SHELL := /bin/sh
 
-.PHONY: test
+IMAGE := pinkweb-phpstan-prefer-interfaces-rule:8.2-dev
 
-# Run PHPUnit tests inside a PHP 8.4 CLI container
-test:
-	docker container run --rm \
-	  -v $$(pwd):/app/ \
-	  -w /app \
-	  php:8.4-cli \
-	  sh -lc "\
-	    set -e; \
-	    if [ ! -f vendor/bin/phpunit ]; then \
-	      apt-get update && apt-get install -y --no-install-recommends unzip git && \
-	      rm -rf /var/lib/apt/lists/*; \
-	      php -r 'copy(\"https://getcomposer.org/installer\", \"composer-setup.php\");' && \
-	      php composer-setup.php --2 --install-dir=/usr/local/bin --filename=composer && \
-	      rm composer-setup.php && \
-	      composer install --no-interaction --prefer-dist --no-progress; \
-	    fi; \
-	    vendor/bin/phpunit \
-	  "
+RUN := docker run --rm --user $(shell id -u):$(shell id -g) -v .:/app -w /app $(IMAGE) sh -lc
+
+.PHONY: build test stan cs-fix
+
+# Build the development image containing all required tools
+build:
+	docker build -t $(IMAGE) . \
+		&& $(RUN) "composer install --dev --no-interaction --prefer-dist --no-progress" \
+		&& $(RUN) "composer clear-cache" && $(RUN) "composer dump-autoload -o"
+
+# Run PHPUnit tests
+test: build
+	$(RUN) "vendor/bin/phpunit"
+
+# Run PHPStan analysis
+stan: build
+	$(RUN) "vendor/bin/phpstan analyse src --no-progress --memory-limit=1G"
+
+# Run PHP-CS-Fixer
+cs-fix: build
+	$(RUN) "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --allow-risky=yes || true"

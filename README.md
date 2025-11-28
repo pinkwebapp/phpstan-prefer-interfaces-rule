@@ -10,7 +10,7 @@ error and suggests the available interfaces.
 Requirements
 ------------
 
-- PHP: ^7.4 or ^8.0
+- PHP: ^8.2
 - PHPStan: ^2
 
 Installation
@@ -19,7 +19,7 @@ Installation
 Install the package as a dev dependency via Composer:
 
 ```
-composer require --dev pinkweb/phpstan-prefer-interfaces-rule
+composer require --dev pinkwebapp/phpstan-prefer-interfaces-rule
 ```
 
 Usage
@@ -30,11 +30,11 @@ Enable the rule by including the provided config in your PHPStan configuration f
 
 ```
 includes:
-    - vendor/pinkweb/phpstan-prefer-interfaces-rule/rules.neon
+    - vendor/pinkwebapp/phpstan-prefer-interfaces-rule/rules.neon
 ```
 
-The bundled `rules.neon` registers the rule and provides a default list of interfaces that are excluded from reporting (
-e.g. `DateTimeInterface`, `Stringable`, SPL interfaces, PSR Logger, etc.).
+The bundled `rules.neon` registers the rule and provides a default list of interfaces that are excluded from reporting
+including common internal/utility types (e.g. `DateTimeInterface`, `Stringable`, SPL interfaces) and allows for wildcards like `Namespace\*`.
 
 Configuring `excludedInterfaces`
 --------------------------------
@@ -46,12 +46,12 @@ Later definitions override earlier ones, so add your configuration after the `in
 
 ```
 includes:
-    - vendor/pinkweb/phpstan-prefer-interfaces-rule/rules.neon
+    - vendor/pinkwebapp/phpstan-prefer-interfaces-rule/rules.neon
 
 parameters:
     excludedInterfaces:
         - DateTimeInterface
-        - Psr\Log\LoggerInterface
+        - Your\Custom\Namespace\*
         - Your\Custom\Interface
 ```
 
@@ -59,7 +59,7 @@ parameters:
 
 ```
 includes:
-    - vendor/pinkweb/phpstan-prefer-interfaces-rule/rules.neon
+    - vendor/pinkwebapp/phpstan-prefer-interfaces-rule/rules.neon
 
 parameters:
     excludedInterfaces:
@@ -76,13 +76,21 @@ parameters:
         - Throwable
         - JsonSerializable
         - Serializable
-        - Psr\Log\LoggerInterface
         # Your additions
         - Your\Additional\Interface
 ```
 
 Note: PHPStan config does not deep-merge arrays by default. Defining `parameters.excludedInterfaces` in your project
 replaces the one from the included file, so include the full list you want to use.
+
+TIP: If you encounter false positives, tune `parameters.excludedInterfaces`. You can exclude by exact interface name
+or use simple wildcards. For example, to ignore all "Namespace" interfaces use:
+
+```
+parameters:
+    excludedInterfaces:
+        - Namespace\*
+```
 
 What the error looks like
 -------------------------
@@ -99,7 +107,7 @@ Error identifier: `pinkweb.constructor.preferInterface`.
 Testing
 -------
 
-This repository includes a Makefile to run tests in a Dockerized PHP 8.4 CLI environment.
+This repository includes a Makefile to run tests in a Dockerized PHP 8.2 CLI environment.
 
 - Run the test suite:
 
@@ -107,5 +115,5 @@ This repository includes a Makefile to run tests in a Dockerized PHP 8.4 CLI env
 make test
 ```
 
-This uses `php:8.4-cli`, bootstraps Composer inside the container, installs required tools (`unzip`, `git`), installs
+This uses `php:8.2-cli`, bootstraps Composer inside the container, installs required tools (`unzip`, `git`), installs
 dependencies, and executes PHPUnit.

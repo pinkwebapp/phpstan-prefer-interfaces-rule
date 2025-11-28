@@ -8,13 +8,15 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassMethod;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ClassReflection;
-use PHPStan\Reflection\ExtendedParameterReflection;
 use PHPStan\Reflection\MissingMethodFromReflectionException;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
 use PHPStan\ShouldNotHappenException;
+use PHPStan\Type\ObjectType;
+use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 
 /**
  * @implements Rule<ClassMethod>
@@ -31,8 +33,10 @@ final class ConstructorPreferInterfaceRule implements Rule
     /**
      * @param string[] $excludedInterfaces List of interfaces to ignore
      */
-    public function __construct(array $excludedInterfaces, ReflectionProvider $reflectionProvider)
-    {
+    public function __construct(
+        array $excludedInterfaces,
+        ReflectionProvider $reflectionProvider,
+    ) {
         $this->excludedInterfaces = $excludedInterfaces;
         $this->reflectionProvider = $reflectionProvider;
     }
@@ -45,7 +49,7 @@ final class ConstructorPreferInterfaceRule implements Rule
     /**
      * @param ClassMethod $node
      *
-     * @return list<IdentifierRuleError>
+     * @return array<IdentifierRuleError>
      *
      * @throws ShouldNotHappenException
      * @throws MissingMethodFromReflectionException
@@ -69,25 +73,48 @@ final class ConstructorPreferInterfaceRule implements Rule
         if (\count($variants) === 0) {
             return [];
         }
-        $parametersAcceptor = $variants[0];
+        $firstParameters = $variants[0]->getParameters();
 
-        /** @var ExtendedParameterReflection $parameter */
-        foreach ($parametersAcceptor->getParameters() as $offset => $parameter) {
-            $parameterType = $parameter->getType();
-            $classNames = $parameterType->getObjectClassNames();
-            if (\count($classNames) !== 1) {
+        foreach ($firstParameters as $offset => $firstParameter) {
+            $agreedClassName = null;
+            $allAgree = true;
+
+            foreach ($variants as $variant) {
+                $parameters = $variant->getParameters();
+                if (!isset($parameters[$offset])) {
+                    $allAgree = false;
+                    break;
+                }
+
+                $normalized = $this->normalizeParameterType($parameters[$offset]->getType());
+                if ($normalized === null) {
+                    $allAgree = false;
+                    break;
+                }
+
+                $className = $normalized->getClassName();
+                if ($agreedClassName === null) {
+                    $agreedClassName = $className;
+                } elseif ($agreedClassName !== $className) {
+                    $allAgree = false;
+                    break;
+                }
+            }
+
+            if ($allAgree === false || $agreedClassName === null) {
                 continue;
             }
-            $className = $classNames[0];
-            if ($this->reflectionProvider->hasClass($className) === false) {
+
+            if ($this->reflectionProvider->hasClass($agreedClassName) === false) {
                 continue;
             }
-            $parameterClass = $this->reflectionProvider->getClass($className);
+
+            $parameterClass = $this->reflectionProvider->getClass($agreedClassName);
 
             $availableInterfaces = \array_filter(
                 $parameterClass->getInterfaces(),
-                function (ClassReflection $interfaceReflection) {
-                    return \in_array($interfaceReflection->getName(), $this->excludedInterfaces, true) === false;
+                function (ClassReflection $interfaceReflection): bool {
+                    return $this->isExcluded($interfaceReflection->getName()) === false;
                 },
             );
 
@@ -100,13 +127,61 @@ final class ConstructorPreferInterfaceRule implements Rule
                 $errors[] = RuleErrorBuilder::message(\sprintf(
                     'Constructor argument #%d "$%s" is of type %s but should be one of: %s',
                     $offset,
-                    $parameter->getName(),
-                    $className,
+                    $firstParameter->getName(),
+                    $agreedClassName,
                     \implode(', ', $interfaceNames),
                 ))->identifier('pinkweb.constructor.preferInterface')->build();
             }
         }
 
         return $errors;
+    }
+
+    /**
+     * Normalize the parameter type to a single ObjectType if applicable.
+     *
+     * Rules:
+     * - A nullable object (?T) is treated as T.
+     * - Multi-type unions are ignored (return null).
+     * - Intersections are ignored (return null).
+     * - Non-object types are ignored (return null).
+     */
+    private function normalizeParameterType(Type $type): ?ObjectType
+    {
+        $type = TypeCombinator::removeNull($type);
+
+        $classNames = $type->getObjectClassNames();
+        if (\count($classNames) === 1) {
+            return new ObjectType($classNames[0]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Determine whether an interface FQCN is excluded by the configured patterns.
+     * Supports exact names and glob-like patterns with '*', e.g. 'Psr\\*'.
+     */
+    private function isExcluded(string $interfaceName): bool
+    {
+        foreach ($this->excludedInterfaces as $pattern) {
+            if ($this->patternMatches($pattern, $interfaceName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Glob pattern matcher for FQCNs. Converts a simple pattern with '*' wildcards
+     * into a regex and applies it to the given subject.
+     */
+    private function patternMatches(string $pattern, string $subject): bool
+    {
+        $escaped = \preg_quote($pattern, '/');
+        $regex = '/^' . \str_replace('\\*', '.*', $escaped) . '$/i';
+
+        return \preg_match($regex, $subject) === 1;
     }
 }

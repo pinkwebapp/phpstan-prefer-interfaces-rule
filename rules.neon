@@ -1,3 +1,6 @@
+parametersSchema:
+    excludedInterfaces: listOf(string())
+
 parameters:
     excludedInterfaces:
         - DateTimeInterface
@@ -12,7 +15,6 @@ parameters:
         - Throwable
         - JsonSerializable
         - Serializable
-        - Psr\Log\LoggerInterface
 
 services:
     -
