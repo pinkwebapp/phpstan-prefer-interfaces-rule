@@ -1,0 +1,30 @@
+{
+    "name": "pinkweb/phpstan-prefer-interfaces-rule",
+    "description": "Custom rules for phpstan to prefer interfaces over concrete classes as constructor arguments.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Thomas Moser",
+            "email": "thomas.moser@visma.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "PinkWeb\\PHPStanPreferInterfacesRule\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+          "PinkWeb\\PHPStanPreferInterfacesRule\\Tests\\": "tests/",
+          "PinkWeb\\PHPStanPreferInterfacesRule\\Tests\\Fixtures\\": "tests/fixtures/"
+        }
+    },
+    "require": {
+        "php": "^7.4 || ^8.0",
+        "phpstan/phpstan": "^2"
+    },
+    "require-dev": {
+      "phpunit/phpunit": "^12.0"
+    }
+}

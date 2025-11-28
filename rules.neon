@@ -1,0 +1,23 @@
+parameters:
+    excludedInterfaces:
+        - DateTimeInterface
+        - Stringable
+        - Countable
+        - Iterator
+        - IteratorAggregate
+        - ArrayAccess
+        - Traversable
+        - BackedEnum
+        - UnitEnum
+        - Throwable
+        - JsonSerializable
+        - Serializable
+        - Psr\Log\LoggerInterface
+
+services:
+    -
+        class: PinkWeb\PHPStanPreferInterfacesRule\ConstructorPreferInterfaceRule
+        arguments:
+            - %excludedInterfaces%
+        tags:
+            - phpstan.rules.rule
